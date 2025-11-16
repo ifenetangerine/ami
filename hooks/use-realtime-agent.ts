@@ -15,33 +15,22 @@ export function useRealtimeAgent({ instructions, onTranscript, onAudioResponse }
 
   // Initialize on mount
   useEffect(() => {
-    if (initAttemptedRef.current) return
-    initAttemptedRef.current = true
-
-    const initialize = async () => {
-      try {
-        console.log('[v0] Initializing realtime agent...')
-        const session = await initializeRealtime()
-        setIsConnected(true)
-        setError(null)
-        console.log('[v0] Realtime agent ready')
-      } catch (err) {
-        const error = err as Error
-        console.error('[v0] Failed to initialize realtime agent:', error)
-        setError(error)
-        setIsConnected(false)
-      }
-    }
-
-    initialize()
+    // Don't auto-initialize anymore - wait for user to click mic button
+    // This prevents the realtime connection from being active on page load
   }, [])
 
   // Start listening
   const startListening = useCallback(async () => {
     try {
-      if (!isConnected) {
-        throw new Error('Realtime agent not initialized')
+      // Initialize on first use if not already attempted
+      if (!initAttemptedRef.current) {
+        console.log('[v0] Initializing realtime agent on first use...')
+        initAttemptedRef.current = true
+        await initializeRealtime()
+        setIsConnected(true)
+        console.log('[v0] Realtime agent ready')
       }
+
       setIsListening(true)
       await speakStartListening()
       console.log('[v0] Started listening')
@@ -52,18 +41,20 @@ export function useRealtimeAgent({ instructions, onTranscript, onAudioResponse }
       setIsListening(false)
       throw error
     }
-  }, [isConnected])
+  }, [])
 
   // Stop listening
   const stopListening = useCallback(async () => {
     try {
-      setIsListening(false)
       await speakStopListening()
+      setIsListening(false)
       console.log('[v0] Stopped listening')
     } catch (err) {
       const error = err as Error
       console.error('[v0] Failed to stop listening:', error)
       setError(error)
+      // Still set to false even if disconnect failed
+      setIsListening(false)
       throw error
     }
   }, [])

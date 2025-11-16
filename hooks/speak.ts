@@ -15,6 +15,7 @@ Important disclaimers:
 Keep responses conversational, clear, and under 3-4 sentences unless more detail is requested.`
 
 let realtimeSession: RealtimeSession | null = null
+let realtimeAgent: RealtimeAgent | null = null
 
 export async function initializeRealtime() {
   try {
@@ -45,6 +46,7 @@ export async function initializeRealtime() {
     })
 
     realtimeSession = session
+    realtimeAgent = agent
     console.log('[v0] Realtime session connected with microphone and speaker')
 
     return session
@@ -68,9 +70,27 @@ export async function startListening() {
 
 export async function stopListening() {
   try {
-    // Note: The RealtimeSession handles audio input/output automatically
-    // You may need to pause or stop based on the actual SDK API
-    console.log('[v0] Listening stopped')
+    if (!realtimeSession) {
+      console.warn('[v0] No active session to stop')
+      return
+    }
+
+    // Properly disconnect the session
+    try {
+      // The SDK's disconnect method stops all audio I/O
+      if (typeof (realtimeSession as any).disconnect === 'function') {
+        await (realtimeSession as any).disconnect()
+      } else if (typeof (realtimeSession as any).close === 'function') {
+        await (realtimeSession as any).close()
+      }
+    } catch (disconnectError) {
+      console.warn('[v0] Error disconnecting session:', disconnectError)
+    }
+
+    // Clear references
+    realtimeSession = null
+    realtimeAgent = null
+    console.log('[v0] Listening stopped - session disconnected')
   } catch (error) {
     console.error('[v0] Failed to stop listening:', error)
     throw error
@@ -79,8 +99,15 @@ export async function stopListening() {
 
 export function closeRealtime() {
   if (realtimeSession) {
-    // Disconnect based on actual SDK method
-    // realtimeSession.disconnect?.()
+    try {
+      if (typeof (realtimeSession as any).disconnect === 'function') {
+        (realtimeSession as any).disconnect()
+      } else if (typeof (realtimeSession as any).close === 'function') {
+        (realtimeSession as any).close()
+      }
+    } catch (error) {
+      console.warn('[v0] Error closing session:', error)
+    }
     realtimeSession = null
     console.log('[v0] Realtime session closed')
   }

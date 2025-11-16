@@ -14,9 +14,11 @@ interface CameraPreviewProps {
 export function CameraPreview({ videoRef, isActive, onToggle }: CameraPreviewProps) {
   useEffect(() => {
     if (videoRef.current && isActive) {
-      videoRef.current.play().catch(console.error)
+      // MediaStream is already being played in the hook
+      // Just log for debugging
+      console.log('Camera preview active, video:', videoRef.current.readyState)
     }
-  }, [videoRef, isActive])
+  }, [isActive])
 
   return (
     <Card className="p-4 bg-card/50 backdrop-blur-sm border-medical-primary/20">
@@ -44,15 +46,27 @@ export function CameraPreview({ videoRef, isActive, onToggle }: CameraPreviewPro
         </div>
 
         <div className="relative aspect-video rounded-lg overflow-hidden bg-black/20">
-          {isActive ? (
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover"
-            />
-          ) : (
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            controls={false}
+            crossOrigin="anonymous"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              backgroundColor: '#000',
+              display: isActive ? 'block' : 'none'
+            }}
+            onPlay={() => console.log('Video playing - ready state:', videoRef.current?.readyState)}
+            onLoadedMetadata={() => console.log('Video metadata loaded')}
+            onCanPlay={() => console.log('Video can play')}
+            onError={(e) => console.error('Video error:', e)}
+          />
+
+          {!isActive && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
                 <Camera className="h-8 w-8 text-muted-foreground mx-auto mb-2" />

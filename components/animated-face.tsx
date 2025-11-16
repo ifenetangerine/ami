@@ -40,7 +40,7 @@ export function AnimatedFace({ emotion, isListening, isSpeaking }: AnimatedFaceP
 
       // Draw face circle with glow effect
       ctx.save()
-      
+
       // Outer glow
       const gradient = ctx.createRadialGradient(centerX, centerY, radius * 0.8, centerX, centerY, radius * 1.2)
       gradient.addColorStop(0, 'rgba(79, 209, 197, 0.3)')
@@ -139,17 +139,17 @@ function drawEyes(
       ctx.arc(centerX + eyeSpacing, eyeY + 5, eyeSize * 0.8, 0, Math.PI * 2)
       ctx.fill()
       break
-    case 'anxious':
+    case 'fear':
       // Wide eyes with animation
-      const anxiousSize = eyeSize * (1 + Math.sin(time * 4) * 0.2)
+      const fearSize = eyeSize * (1 + Math.sin(time * 4) * 0.2)
       ctx.beginPath()
-      ctx.arc(centerX - eyeSpacing, eyeY, anxiousSize, 0, Math.PI * 2)
+      ctx.arc(centerX - eyeSpacing, eyeY, fearSize, 0, Math.PI * 2)
       ctx.fill()
       ctx.beginPath()
-      ctx.arc(centerX + eyeSpacing, eyeY, anxiousSize, 0, Math.PI * 2)
+      ctx.arc(centerX + eyeSpacing, eyeY, fearSize, 0, Math.PI * 2)
       ctx.fill()
       break
-    case 'surprised':
+    case 'surprise':
       // Very wide eyes
       ctx.beginPath()
       ctx.arc(centerX - eyeSpacing, eyeY, eyeSize * 1.3, 0, Math.PI * 2)
@@ -158,8 +158,27 @@ function drawEyes(
       ctx.arc(centerX + eyeSpacing, eyeY, eyeSize * 1.3, 0, Math.PI * 2)
       ctx.fill()
       break
+    case 'angry':
+      // Narrow eyes with downward slant
+      ctx.beginPath()
+      ctx.arc(centerX - eyeSpacing, eyeY - 3, eyeSize, 0.2, Math.PI - 0.2)
+      ctx.fill()
+      ctx.beginPath()
+      ctx.arc(centerX + eyeSpacing, eyeY - 3, eyeSize, 0.2, Math.PI - 0.2)
+      ctx.fill()
+      break
+    case 'disgust':
+      // Squinted eyes
+      ctx.beginPath()
+      ctx.arc(centerX - eyeSpacing, eyeY, eyeSize * 0.6, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.beginPath()
+      ctx.arc(centerX + eyeSpacing, eyeY, eyeSize * 0.6, 0, Math.PI * 2)
+      ctx.fill()
+      break
+    case 'neutral':
     default:
-      // Neutral eyes
+      // Normal eyes
       ctx.beginPath()
       ctx.arc(centerX - eyeSpacing, eyeY, eyeSize, 0, Math.PI * 2)
       ctx.fill()
@@ -201,7 +220,7 @@ function drawMouth(
       ctx.arc(centerX, mouthY + 20, mouthWidth * 0.8, Math.PI + 0.3, Math.PI * 2 - 0.3)
       ctx.stroke()
       break
-    case 'anxious':
+    case 'fear':
       // Wavy line
       ctx.beginPath()
       ctx.moveTo(centerX - mouthWidth / 2, mouthY)
@@ -212,14 +231,28 @@ function drawMouth(
       }
       ctx.stroke()
       break
-    case 'surprised':
+    case 'surprise':
       // Open circle
       ctx.beginPath()
       ctx.arc(centerX, mouthY + speakOffset, mouthWidth * 0.3, 0, Math.PI * 2)
       ctx.stroke()
       break
+    case 'angry':
+      // Straight line (frown)
+      ctx.beginPath()
+      ctx.moveTo(centerX - mouthWidth / 2, mouthY - 5)
+      ctx.lineTo(centerX + mouthWidth / 2, mouthY - 5)
+      ctx.stroke()
+      break
+    case 'disgust':
+      // Twisted smile
+      ctx.beginPath()
+      ctx.arc(centerX, mouthY - 5, mouthWidth * 0.6, 0.1, Math.PI - 0.1)
+      ctx.stroke()
+      break
+    case 'neutral':
     default:
-      // Neutral line
+      // Straight line
       ctx.beginPath()
       ctx.moveTo(centerX - mouthWidth / 2, mouthY + speakOffset)
       ctx.lineTo(centerX + mouthWidth / 2, mouthY + speakOffset)

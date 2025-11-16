@@ -3,7 +3,7 @@
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Smile, Frown, Meh, AlertCircle, Angry, Sparkles } from 'lucide-react'
+import { Smile, Frown, Meh, AlertCircle, Angry, Zap, Eye } from 'lucide-react'
 import type { EmotionType } from '@/app/page'
 
 interface EmotionDisplayProps {
@@ -13,33 +13,44 @@ interface EmotionDisplayProps {
 }
 
 const emotionIcons: Record<EmotionType, any> = {
-  neutral: Meh,
   happy: Smile,
   sad: Frown,
-  anxious: AlertCircle,
+  neutral: Meh,
   angry: Angry,
-  surprised: Sparkles
+  disgust: Zap,
+  fear: AlertCircle,
+  surprise: Eye
 }
 
 const emotionColors: Record<EmotionType, string> = {
-  neutral: 'text-muted-foreground',
   happy: 'text-green-500',
   sad: 'text-blue-500',
-  anxious: 'text-yellow-500',
-  angry: 'text-red-500',
-  surprised: 'text-purple-500'
+  neutral: 'text-muted-foreground',
+  angry: 'text-red-600',
+  disgust: 'text-orange-600',
+  fear: 'text-purple-600',
+  surprise: 'text-yellow-500'
 }
 
 export function EmotionDisplay({ emotion, confidence, isActive }: EmotionDisplayProps) {
-  const Icon = emotionIcons[emotion]
-  const colorClass = emotionColors[emotion]
+  // Ensure emotion is a valid key
+  const validEmotions: EmotionType[] = ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
+  const isValidEmotion = validEmotions.includes(emotion as EmotionType)
+  const safeEmotion: EmotionType = isValidEmotion ? emotion : 'neutral'
+
+  if (!isValidEmotion) {
+    console.warn(`[EmotionDisplay] Invalid emotion detected: "${emotion}" - Valid emotions are:`, validEmotions)
+  }
+
+  const Icon = emotionIcons[safeEmotion] || Meh
+  const colorClass = emotionColors[safeEmotion] || emotionColors['neutral']
 
   return (
     <Card className="p-4 bg-card/50 backdrop-blur-sm border-medical-primary/20">
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-foreground">Emotion Detection</span>
-          <Badge 
+          <Badge
             variant={isActive ? "default" : "outline"}
             className={isActive ? "bg-medical-primary" : ""}
           >

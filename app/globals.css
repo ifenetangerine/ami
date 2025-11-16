@@ -1,0 +1,152 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Medical-themed color palette for Ami */
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(215 25% 18%);
+  --card: hsl(0 0% 100%);
+  --card-foreground: oklch(0.15 0.02 240);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: oklch(0.15 0.02 240);
+  
+  /* Medical primary - calming teal */
+  --medical-primary: oklch(0.65 0.15 180);
+  --medical-primary-foreground: oklch(1 0 0);
+  
+  /* Medical secondary - soft blue */
+  --medical-secondary: oklch(0.70 0.12 220);
+  --medical-secondary-foreground: oklch(1 0 0);
+  
+  /* Medical accent - alert coral */
+  --medical-accent: oklch(0.65 0.18 30);
+  --medical-accent-foreground: oklch(1 0 0);
+  
+  --primary: hsl(215 45% 32%);
+  --primary-foreground: var(--medical-primary-foreground);
+  --secondary: hsl(215 15% 93%);
+  --secondary-foreground: oklch(0.15 0.02 240);
+  --muted: hsl(215 15% 93%);
+  --muted-foreground: oklch(0.50 0.02 240);
+  --accent: hsl(215 25% 85%);
+  --accent-foreground: oklch(0.15 0.02 240);
+  --destructive: hsl(0 84.2% 60.2%);
+  --destructive-foreground: var(--medical-accent-foreground);
+  --border: hsl(215 18% 88%);
+  --input: hsl(215 18% 88%);
+  --ring: hsl(215 45% 32%);
+  --chart-1: hsl(215 45% 32%);
+  --chart-2: hsl(220 38% 45%);
+  --chart-3: hsl(210 32% 58%);
+  --chart-4: hsl(205 25% 68%);
+  --chart-5: hsl(218 52% 22%);
+  --radius: 0.75rem;
+  --sidebar: hsl(215 12% 97%);
+  --sidebar-foreground: oklch(0.15 0.02 240);
+  --sidebar-primary: var(--medical-primary);
+  --sidebar-primary-foreground: var(--medical-primary-foreground);
+  --sidebar-accent: oklch(0.96 0.01 180);
+  --sidebar-accent-foreground: oklch(0.15 0.02 240);
+  --sidebar-border: oklch(0.90 0.01 180);
+  --sidebar-ring: oklch(0.65 0.15 180);
+}
+
+.dark {
+  --background: oklch(0.12 0.02 240);
+  --foreground: oklch(0.98 0.005 180);
+  --card: oklch(0.15 0.02 240);
+  --card-foreground: oklch(0.98 0.005 180);
+  --popover: oklch(0.15 0.02 240);
+  --popover-foreground: oklch(0.98 0.005 180);
+  --medical-primary: oklch(0.70 0.15 180);
+  --medical-primary-foreground: oklch(0.12 0.02 240);
+  --medical-secondary: oklch(0.65 0.12 220);
+  --medical-secondary-foreground: oklch(0.12 0.02 240);
+  --medical-accent: oklch(0.70 0.18 30);
+  --medical-accent-foreground: oklch(0.12 0.02 240);
+  --primary: var(--medical-primary);
+  --primary-foreground: var(--medical-primary-foreground);
+  --secondary: oklch(0.20 0.02 240);
+  --secondary-foreground: oklch(0.98 0.005 180);
+  --muted: oklch(0.20 0.02 240);
+  --muted-foreground: oklch(0.65 0.02 240);
+  --accent: oklch(0.20 0.02 240);
+  --accent-foreground: oklch(0.98 0.005 180);
+  --destructive: var(--medical-accent);
+  --destructive-foreground: var(--medical-accent-foreground);
+  --border: oklch(0.25 0.02 240);
+  --input: oklch(0.25 0.02 240);
+  --ring: oklch(0.70 0.15 180);
+  --chart-1: oklch(0.70 0.15 180);
+  --chart-2: oklch(0.65 0.12 220);
+  --chart-3: oklch(0.70 0.18 30);
+  --chart-4: oklch(0.75 0.10 140);
+  --chart-5: oklch(0.65 0.12 280);
+  --sidebar: oklch(0.15 0.02 240);
+  --sidebar-foreground: oklch(0.98 0.005 180);
+  --sidebar-primary: var(--medical-primary);
+  --sidebar-primary-foreground: var(--medical-primary-foreground);
+  --sidebar-accent: oklch(0.20 0.02 240);
+  --sidebar-accent-foreground: oklch(0.98 0.005 180);
+  --sidebar-border: oklch(0.25 0.02 240);
+  --sidebar-ring: oklch(0.70 0.15 180);
+}
+
+@theme inline {
+  --font-sans: 'Geist', 'Geist Fallback';
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  /* Added medical color tokens */
+  --color-medical-primary: var(--medical-primary);
+  --color-medical-primary-foreground: var(--medical-primary-foreground);
+  --color-medical-secondary: var(--medical-secondary);
+  --color-medical-secondary-foreground: var(--medical-secondary-foreground);
+  --color-medical-accent: var(--medical-accent);
+  --color-medical-accent-foreground: var(--medical-accent-foreground);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

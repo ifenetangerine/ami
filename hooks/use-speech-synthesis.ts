@@ -33,9 +33,9 @@ export function useSpeechSynthesis() {
         console.log('[v0] Speech synthesis ended')
       }
 
-      utterance.onerror = (event) => {
+      utterance.onerror = (event: SpeechSynthesisErrorEvent) => {
         setIsSpeaking(false)
-        console.error('[v0] Speech synthesis error:', event)
+        console.error('[v0] Speech synthesis error:', event.error)
       }
 
       window.speechSynthesis.speak(utterance)

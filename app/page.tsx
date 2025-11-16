@@ -6,11 +6,11 @@ import { HealthMonitor } from '@/components/health-monitor'
 import { VoiceControls } from '@/components/voice-controls'
 import { EmotionDisplay } from '@/components/emotion-display'
 import { CameraPreview } from '@/components/camera-preview'
-import { useAudioRecorder } from '@/hooks/use-audio-recorder'
-import { useSpeechSynthesis } from '@/hooks/use-speech-synthesis'
 import { useEmotionDetection } from '@/hooks/use-emotion-detection'
 import { useHealthMonitoring } from '@/hooks/use-health-monitoring'
+import { useRealtimeAgent } from '@/hooks/use-realtime-agent'
 import { useState, useEffect } from 'react'
+import { startListening, stopListening, closeRealtime } from '@/hooks/speak'
 
 export type EmotionType = 'neutral' | 'happy' | 'sad' | 'anxious' | 'angry' | 'surprised'
 
@@ -26,16 +26,15 @@ export default function Page() {
   const [messages, setMessages] = useState<Message[]>([])
   const [currentEmotion, setCurrentEmotion] = useState<EmotionType>('neutral')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isListening, setIsListening] = useState(false)
 
-  const { isRecording, startRecording, stopRecording, cancelRecording } = useAudioRecorder()
-  const { isSpeaking, speak, stop: stopSpeaking } = useSpeechSynthesis()
-  const { 
-    detectedEmotion, 
-    confidence, 
-    isDetecting, 
-    videoRef, 
-    startDetection, 
-    stopDetection 
+  const {
+    detectedEmotion,
+    confidence,
+    isDetecting,
+    videoRef,
+    startDetection,
+    stopDetection
   } = useEmotionDetection()
 
   const {
@@ -44,17 +43,30 @@ export default function Page() {
     startMonitoring,
     stopMonitoring,
     clearAlert
-  } = useHealthMonitoring(videoRef)
+  } = useHealthMonitoring(videoRef as React.RefObject<HTMLVideoElement>)
+
+  // Initialize realtime agent (handles mic and speaker automatically)
+  const { isConnected, isListening: agentIsListening, error, startListening, stopListening: agentStopListening } = useRealtimeAgent({
+    onTranscript: (text: string) => {
+      console.log('[v0] User transcript:', text)
+      if (text) {
+        handleSendMessage(text)
+      }
+    },
+    onAudioResponse: () => {
+      setIsProcessing(false)
+    }
+  })
 
   useEffect(() => {
-    if (isSpeaking) {
+    if (isListening) {
       setCurrentEmotion('happy')
-    } else if (isRecording) {
+    } else if (detectedEmotion !== 'neutral') {
       setCurrentEmotion(detectedEmotion)
     } else {
       setCurrentEmotion('neutral')
     }
-  }, [isSpeaking, isRecording, detectedEmotion])
+  }, [isListening, detectedEmotion])
 
   useEffect(() => {
     if (isDetecting && !isMonitoring) {
@@ -64,51 +76,52 @@ export default function Page() {
     }
   }, [isDetecting, isMonitoring, startMonitoring, stopMonitoring])
 
+  useEffect(() => {
+    if (isConnected) {
+      console.log('[v0] OpenAI Realtime agent connected')
+    } else if (error) {
+      console.error('[v0] Realtime connection error:', error.message)
+    }
+  }, [isConnected, error])
+
   const handleToggleCamera = async () => {
     if (isDetecting) {
       stopDetection()
     } else {
       try {
-        await startDetection((result) => {
+        await startDetection((result: any) => {
           console.log('[v0] Emotion update:', result)
         })
-      } catch (error) {
-        console.error('[v0] Failed to start camera:', error)
+      } catch (err) {
+        console.error('[v0] Failed to start camera:', err)
       }
     }
   }
 
   const handleStartListening = async () => {
     try {
-      await startRecording((chunk) => {
-        console.log('[v0] Audio chunk captured:', chunk.size, 'bytes')
-      })
-    } catch (error) {
-      console.error('[v0] Failed to start listening:', error)
+      setIsListening(true)
+      await startListening()
+    } catch (err) {
+      console.error('[v0] Failed to start listening:', err)
+      setIsListening(false)
     }
   }
 
   const handleStopListening = async () => {
     try {
-      const audioBlob = await stopRecording()
-      console.log('[v0] Audio blob created:', audioBlob.size, 'bytes')
-      
-      setTimeout(() => {
-        const simulatedText = "I've been feeling tired lately and have occasional headaches"
-        handleSendMessage(simulatedText)
-      }, 500)
-    } catch (error) {
-      console.error('[v0] Failed to stop listening:', error)
+      setIsListening(false)
+      await agentStopListening()
+    } catch (err) {
+      console.error('[v0] Failed to stop listening:', err)
     }
   }
 
   const handleEmergencyStop = () => {
-    if (isRecording) {
-      cancelRecording()
+    if (isListening) {
+      handleStopListening()
     }
-    if (isSpeaking) {
-      stopSpeaking()
-    }
+    closeRealtime()
   }
 
   const handleSendMessage = async (content: string) => {
@@ -119,7 +132,7 @@ export default function Page() {
       timestamp: new Date(),
       emotion: detectedEmotion
     }
-    
+
     const updatedMessages = [...messages, userMessage]
     setMessages(updatedMessages)
     setIsProcessing(true)
@@ -172,15 +185,10 @@ export default function Page() {
         content: assistantText || 'I apologize, I had trouble generating a response.',
         timestamp: new Date()
       }
-      
+
       setMessages([...updatedMessages, assistantMessage])
       setIsProcessing(false)
-      
-      speak(assistantMessage.content, {
-        rate: 0.95,
-        pitch: 1.1,
-        volume: 0.9
-      })
+      // Audio is handled automatically by the realtime agent
     } catch (error) {
       console.error('[v0] Failed to get AI response:', error)
       setIsProcessing(false)
@@ -191,28 +199,28 @@ export default function Page() {
     <main className="min-h-screen bg-background flex flex-col lg:flex-row">
       <div className="lg:w-2/5 flex items-center justify-center bg-gradient-to-br from-medical-primary/10 to-medical-secondary/10 p-8 lg:p-12 border-b lg:border-b-0 lg:border-r border-border/50">
         <div className="w-full max-w-md space-y-6">
-          <AnimatedFace 
+          <AnimatedFace
             emotion={currentEmotion}
-            isListening={isRecording}
-            isSpeaking={isSpeaking}
+            isListening={isListening}
+            isSpeaking={isProcessing}
           />
-          
+
           <VoiceControls
-            isListening={isRecording}
-            isSpeaking={isSpeaking}
+            isListening={isListening}
+            isSpeaking={isProcessing}
             onStartListening={handleStartListening}
             onStopListening={handleStopListening}
             onEmergencyStop={handleEmergencyStop}
           />
 
-          <EmotionDisplay 
+          <EmotionDisplay
             emotion={detectedEmotion}
             confidence={confidence}
             isActive={isDetecting}
           />
 
           <CameraPreview
-            videoRef={videoRef}
+            videoRef={videoRef as React.RefObject<HTMLVideoElement>}
             isActive={isDetecting}
             onToggle={handleToggleCamera}
           />

@@ -1,42 +1,52 @@
-export type WSMessageType = 
-  | 'audio_chunk'
-  | 'transcription'
-  | 'emotion_detected'
-  | 'pose_detected'
-  | 'seizure_alert'
-  | 'assistant_response'
-  | 'error'
+export type WSMessageType = string
 
 export interface WSMessage {
   type: WSMessageType
-  data: any
-  timestamp: number
+  [key: string]: any
+}
+
+interface WebSocketClientOptions {
+  url: string
+  apiKey?: string
+  binaryType?: BinaryType
 }
 
 export class WebSocketClient {
   private ws: WebSocket | null = null
-  private reconnectAttempts = 0
-  private maxReconnectAttempts = 5
-  private reconnectDelay = 1000
-  private messageHandlers: Map<WSMessageType, ((data: any) => void)[]> = new Map()
+  private readonly url: string
+  private readonly apiKey?: string
+  private readonly binaryType: BinaryType
+  private messageHandlers: Map<WSMessageType, ((message: WSMessage) => void)[]> = new Map()
+  private defaultHandlers: Array<(message: WSMessage) => void> = []
 
-  constructor(private url: string) {}
+  constructor(options: WebSocketClientOptions) {
+    this.url = options.url
+    this.apiKey = options.apiKey
+    this.binaryType = options.binaryType ?? 'arraybuffer'
+  }
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(this.url)
+        // For browser environment, WebSocket doesn't support custom headers
+        // The API key is passed in the URL or headers if in a Node.js environment
+        const wsUrl = this.apiKey ? `${this.url}&api_key=${this.apiKey}` : this.url
+        this.ws = new WebSocket(wsUrl)
+        this.ws.binaryType = this.binaryType
 
         this.ws.onopen = () => {
-          console.log('[v0] WebSocket connected')
-          this.reconnectAttempts = 0
+          console.log('[v0] OpenAI Realtime WebSocket connected')
           resolve()
         }
 
         this.ws.onmessage = (event) => {
           try {
-            const message: WSMessage = JSON.parse(event.data)
-            this.handleMessage(message)
+            if (typeof event.data === 'string') {
+              const message: WSMessage = JSON.parse(event.data)
+              this.dispatchMessage(message)
+            } else {
+              console.log('[v0] Received binary data:', event.data)
+            }
           } catch (error) {
             console.error('[v0] Failed to parse WebSocket message:', error)
           }
@@ -47,9 +57,9 @@ export class WebSocketClient {
           reject(error)
         }
 
-        this.ws.onclose = () => {
-          console.log('[v0] WebSocket closed')
-          this.attemptReconnect()
+        this.ws.onclose = (event) => {
+          console.log('[v0] WebSocket closed', event.code, event.reason)
+          this.ws = null
         }
       } catch (error) {
         reject(error)
@@ -57,21 +67,32 @@ export class WebSocketClient {
     })
   }
 
-  private handleMessage(message: WSMessage) {
+  private dispatchMessage(message: WSMessage) {
+    this.defaultHandlers.forEach(handler => handler(message))
+
+    if (!message.type) {
+      return
+    }
+
     const handlers = this.messageHandlers.get(message.type)
     if (handlers) {
-      handlers.forEach(handler => handler(message.data))
+      handlers.forEach(handler => handler(message))
     }
   }
 
-  on(type: WSMessageType, handler: (data: any) => void) {
+  on(type: WSMessageType, handler: (message: WSMessage) => void) {
     if (!this.messageHandlers.has(type)) {
       this.messageHandlers.set(type, [])
     }
+
     this.messageHandlers.get(type)!.push(handler)
   }
 
-  off(type: WSMessageType, handler: (data: any) => void) {
+  onAny(handler: (message: WSMessage) => void) {
+    this.defaultHandlers.push(handler)
+  }
+
+  off(type: WSMessageType, handler: (message: WSMessage) => void) {
     const handlers = this.messageHandlers.get(type)
     if (handlers) {
       const index = handlers.indexOf(handler)
@@ -81,14 +102,25 @@ export class WebSocketClient {
     }
   }
 
-  send(type: WSMessageType, data: any) {
+  offAny(handler: (message: WSMessage) => void) {
+    const index = this.defaultHandlers.indexOf(handler)
+    if (index > -1) {
+      this.defaultHandlers.splice(index, 1)
+    }
+  }
+
+  send(type: WSMessageType, data?: Record<string, any>) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      const message: WSMessage = {
-        type,
-        data,
-        timestamp: Date.now()
-      }
+      const message = data ? { type, ...data } : { type }
       this.ws.send(JSON.stringify(message))
+    } else {
+      console.warn('[v0] WebSocket not connected, message not sent')
+    }
+  }
+
+  sendRaw(payload: Record<string, any>) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(payload))
     } else {
       console.warn('[v0] WebSocket not connected, message not sent')
     }
@@ -97,16 +129,8 @@ export class WebSocketClient {
   sendBinary(data: ArrayBuffer) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(data)
-    }
-  }
-
-  private attemptReconnect() {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++
-      console.log(`[v0] Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`)
-      setTimeout(() => {
-        this.connect().catch(console.error)
-      }, this.reconnectDelay * this.reconnectAttempts)
+    } else {
+      console.warn('[v0] WebSocket not connected, binary message not sent')
     }
   }
 

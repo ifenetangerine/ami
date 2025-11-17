@@ -11,6 +11,99 @@ interface AnimatedFaceProps {
 
 export function AnimatedFace({ emotion, isListening, isSpeaking }: AnimatedFaceProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const imagesRef = useRef<{
+    head_open: HTMLImageElement | null
+    head_closed: HTMLImageElement | null
+    mouth_rest: HTMLImageElement | null
+    mouth_open: HTMLImageElement | null
+    mouth_narrow: HTMLImageElement | null
+    mouth_closed: HTMLImageElement | null
+    mouth_rest_frown: HTMLImageElement | null
+  }>({
+    head_open: null,
+    head_closed: null,
+    mouth_rest: null,
+    mouth_open: null,
+    mouth_narrow: null,
+    mouth_closed: null,
+    mouth_rest_frown: null,
+  })
+  const stateRef = useRef({
+    currentMouth: 'rest' as string,
+    eyesClosed: false,
+    blinkTimer: 0,
+    blinkDuration: 0,
+    audioAmplitude: 0,
+    useFrown: false,
+    callCount: 0,
+  })
+
+  // Update mouth animation based on window.__aiSpeaking flag
+  useEffect(() => {
+    let animationInterval: NodeJS.Timeout | null = null
+    let callCount = 0
+    let lastMouth = ''
+
+    const checkSpeaking = () => {
+      const isAiSpeaking = (window as any).__aiSpeaking === true
+
+      if (callCount % 10 === 0) {
+        console.log('[AnimatedFace] Checking: __aiSpeaking =', (window as any).__aiSpeaking, 'isAiSpeaking =', isAiSpeaking)
+      }
+
+      if (isAiSpeaking) {
+        if (!animationInterval) {
+          console.log('[AnimatedFace] AI started speaking, activating mouth animation')
+          callCount = 0
+
+          animationInterval = setInterval(() => {
+            callCount++
+            const phase = callCount % 15
+
+            let newMouth = ''
+            if (phase < 5) {
+              newMouth = 'open'
+            } else if (phase < 10) {
+              newMouth = 'narrow'
+            } else {
+              newMouth = 'closed'
+            }
+
+            if (newMouth !== lastMouth) {
+              console.log('[AnimatedFace] Mouth changed to:', newMouth)
+              lastMouth = newMouth
+            }
+            stateRef.current.currentMouth = newMouth
+          }, 100)
+        }
+      } else {
+        if (animationInterval) {
+          console.log('[AnimatedFace] AI stopped speaking, mouth to rest')
+          clearInterval(animationInterval)
+          animationInterval = null
+        }
+        const newMouth = stateRef.current.useFrown ? 'rest_frown' : 'rest'
+        if (newMouth !== lastMouth) {
+          console.log('[AnimatedFace] Mouth changed to:', newMouth)
+          lastMouth = newMouth
+        }
+        stateRef.current.currentMouth = newMouth
+      }
+    }
+
+    // Check speaking state every 100ms
+    const checkInterval = setInterval(checkSpeaking, 100)
+
+    return () => {
+      clearInterval(checkInterval)
+      if (animationInterval) {
+        clearInterval(animationInterval)
+      }
+    }
+  }, [])    // Update frown based on emotion  // Update frown based on emotion
+  useEffect(() => {
+    stateRef.current.useFrown = emotion === 'sad' || emotion === 'angry' || emotion === 'fear' || emotion === 'disgust'
+  }, [emotion])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -19,81 +112,119 @@ export function AnimatedFace({ emotion, isListening, isSpeaking }: AnimatedFaceP
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Set canvas size
-    const size = Math.min(canvas.offsetWidth, canvas.offsetHeight)
-    canvas.width = size
-    canvas.height = size
-
-    let animationFrame: number
-
-    // Animation parameters
-    let time = 0
-    const animate = () => {
-      time += 0.02
-
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-      const centerX = canvas.width / 2
-      const centerY = canvas.height / 2
-      const radius = canvas.width * 0.35
-
-      // Draw face circle with glow effect
-      ctx.save()
-
-      // Outer glow
-      const gradient = ctx.createRadialGradient(centerX, centerY, radius * 0.8, centerX, centerY, radius * 1.2)
-      gradient.addColorStop(0, 'rgba(79, 209, 197, 0.3)')
-      gradient.addColorStop(1, 'rgba(79, 209, 197, 0)')
-      ctx.fillStyle = gradient
-      ctx.beginPath()
-      ctx.arc(centerX, centerY, radius * 1.2, 0, Math.PI * 2)
-      ctx.fill()
-
-      // Main face circle
-      ctx.fillStyle = 'rgba(79, 209, 197, 0.1)'
-      ctx.strokeStyle = 'rgba(79, 209, 197, 0.6)'
-      ctx.lineWidth = 3
-      ctx.beginPath()
-      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.stroke()
-
-      // Pulse effect when listening
-      if (isListening) {
-        const pulseRadius = radius + Math.sin(time * 3) * 10
-        ctx.strokeStyle = `rgba(79, 209, 197, ${0.3 + Math.sin(time * 3) * 0.2})`
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.arc(centerX, centerY, pulseRadius, 0, Math.PI * 2)
-        ctx.stroke()
+    // Load images
+    const loadImages = async () => {
+      const imageMap: { [key: string]: string } = {
+        head_open: '/faces/head_open.png',
+        head_closed: '/faces/head_closed.png',
+        mouth_rest: '/faces/mouth_rest.png',
+        mouth_open: '/faces/mouth_open.png',
+        mouth_narrow: '/faces/mouth_narrow.png',
+        mouth_closed: '/faces/mouth_closed.png',
+        mouth_rest_frown: '/faces/mouth_rest_frown.png',
       }
 
-      // Draw eyes based on emotion
-      drawEyes(ctx, centerX, centerY, radius, emotion, time, isSpeaking)
+      for (const [key, src] of Object.entries(imageMap)) {
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve()
+          img.onerror = () => reject(new Error(`Failed to load ${src}`))
+          img.src = src
+        })
+        ;(imagesRef.current[key as keyof typeof imagesRef.current] as HTMLImageElement) = img
+      }
 
-      // Draw mouth based on emotion
-      drawMouth(ctx, centerX, centerY, radius, emotion, time, isSpeaking)
-
-      ctx.restore()
-
-      animationFrame = requestAnimationFrame(animate)
+      startAnimation()
     }
 
-    animate()
+    const startAnimation = () => {
+      let animationFrame: number
+      let time = 0
 
-    return () => {
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame)
+      const animate = () => {
+        time += 0.016 // ~60fps
+
+        // Update blinking
+        stateRef.current.blinkTimer += 0.016
+        if (stateRef.current.blinkTimer > 4) {
+          // Blink every ~4 seconds
+          stateRef.current.eyesClosed = true
+          stateRef.current.blinkDuration = 0.15 // Blink for 150ms
+          stateRef.current.blinkTimer = 0
+        }
+
+        if (stateRef.current.eyesClosed) {
+          stateRef.current.blinkDuration -= 0.016
+          if (stateRef.current.blinkDuration <= 0) {
+            stateRef.current.eyesClosed = false
+          }
+        }
+
+        // Draw avatar
+        drawAvatar(ctx, canvas.width, canvas.height)
+
+        animationFrame = requestAnimationFrame(animate)
+      }
+
+      animate()
+
+      return () => {
+        if (animationFrame) {
+          cancelAnimationFrame(animationFrame)
+        }
       }
     }
-  }, [emotion, isListening, isSpeaking])
+
+    loadImages().catch(err => {
+      console.error('[AnimatedFace] Failed to load images:', err)
+    })
+  }, [])
+
+  const drawAvatar = (ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number) => {
+    const { head_open, head_closed, mouth_rest, mouth_open, mouth_narrow, mouth_closed, mouth_rest_frown } = imagesRef.current
+
+    if (!head_open || !head_closed || !mouth_rest) return
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+
+    // Draw head (open or closed eyes)
+    const headImage = stateRef.current.eyesClosed ? head_closed : head_open
+    ctx.drawImage(headImage, 0, 0, canvasWidth, canvasHeight)
+
+    // Draw mouth based on current state
+    let mouthImage: HTMLImageElement | null = null
+    const mouthType = stateRef.current.currentMouth
+
+    switch (mouthType) {
+      case 'open':
+        mouthImage = mouth_open
+        break
+      case 'closed':
+        mouthImage = mouth_closed
+        break
+      case 'narrow':
+        mouthImage = mouth_narrow
+        break
+      case 'rest_frown':
+        mouthImage = mouth_rest_frown
+        break
+      case 'rest':
+      default:
+        mouthImage = mouth_rest
+    }
+
+    if (mouthImage) {
+      ctx.drawImage(mouthImage, 0, 0, canvasWidth, canvasHeight)
+    }
+  }
 
   return (
     <div className="relative w-full aspect-square">
       <canvas
         ref={canvasRef}
-        className="w-full h-full"
+        className="w-full h-full bg-gradient-to-b from-slate-900 to-slate-800 rounded-lg"
       />
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className={`text-medical-primary/20 text-8xl font-bold transition-opacity duration-500 ${isSpeaking ? 'opacity-100' : 'opacity-0'}`}>
@@ -104,158 +235,11 @@ export function AnimatedFace({ emotion, isListening, isSpeaking }: AnimatedFaceP
   )
 }
 
-function drawEyes(
-  ctx: CanvasRenderingContext2D,
-  centerX: number,
-  centerY: number,
-  radius: number,
-  emotion: EmotionType,
-  time: number,
-  isSpeaking: boolean
-) {
-  const eyeY = centerY - radius * 0.15
-  const eyeSpacing = radius * 0.3
-  const eyeSize = radius * 0.08
-
-  ctx.fillStyle = 'rgba(79, 209, 197, 0.9)'
-
-  // Adjust eye shape based on emotion
-  switch (emotion) {
-    case 'happy':
-      // Crescent eyes
-      ctx.beginPath()
-      ctx.arc(centerX - eyeSpacing, eyeY, eyeSize, 0.2, Math.PI - 0.2)
-      ctx.fill()
-      ctx.beginPath()
-      ctx.arc(centerX + eyeSpacing, eyeY, eyeSize, 0.2, Math.PI - 0.2)
-      ctx.fill()
-      break
-    case 'sad':
-      // Droopy eyes
-      ctx.beginPath()
-      ctx.arc(centerX - eyeSpacing, eyeY + 5, eyeSize * 0.8, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.beginPath()
-      ctx.arc(centerX + eyeSpacing, eyeY + 5, eyeSize * 0.8, 0, Math.PI * 2)
-      ctx.fill()
-      break
-    case 'fear':
-      // Wide eyes with animation
-      const fearSize = eyeSize * (1 + Math.sin(time * 4) * 0.2)
-      ctx.beginPath()
-      ctx.arc(centerX - eyeSpacing, eyeY, fearSize, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.beginPath()
-      ctx.arc(centerX + eyeSpacing, eyeY, fearSize, 0, Math.PI * 2)
-      ctx.fill()
-      break
-    case 'surprise':
-      // Very wide eyes
-      ctx.beginPath()
-      ctx.arc(centerX - eyeSpacing, eyeY, eyeSize * 1.3, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.beginPath()
-      ctx.arc(centerX + eyeSpacing, eyeY, eyeSize * 1.3, 0, Math.PI * 2)
-      ctx.fill()
-      break
-    case 'angry':
-      // Narrow eyes with downward slant
-      ctx.beginPath()
-      ctx.arc(centerX - eyeSpacing, eyeY - 3, eyeSize, 0.2, Math.PI - 0.2)
-      ctx.fill()
-      ctx.beginPath()
-      ctx.arc(centerX + eyeSpacing, eyeY - 3, eyeSize, 0.2, Math.PI - 0.2)
-      ctx.fill()
-      break
-    case 'disgust':
-      // Squinted eyes
-      ctx.beginPath()
-      ctx.arc(centerX - eyeSpacing, eyeY, eyeSize * 0.6, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.beginPath()
-      ctx.arc(centerX + eyeSpacing, eyeY, eyeSize * 0.6, 0, Math.PI * 2)
-      ctx.fill()
-      break
-    case 'neutral':
-    default:
-      // Normal eyes
-      ctx.beginPath()
-      ctx.arc(centerX - eyeSpacing, eyeY, eyeSize, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.beginPath()
-      ctx.arc(centerX + eyeSpacing, eyeY, eyeSize, 0, Math.PI * 2)
-      ctx.fill()
+function calculateMouthValueFromPcm(pcm: Float32Array): number {
+  let sum = 0
+  for (let i = 0; i < pcm.length; i++) {
+    sum += Math.abs(pcm[i])
   }
-}
-
-function drawMouth(
-  ctx: CanvasRenderingContext2D,
-  centerX: number,
-  centerY: number,
-  radius: number,
-  emotion: EmotionType,
-  time: number,
-  isSpeaking: boolean
-) {
-  const mouthY = centerY + radius * 0.2
-  const mouthWidth = radius * 0.4
-
-  ctx.strokeStyle = 'rgba(79, 209, 197, 0.9)'
-  ctx.lineWidth = 4
-  ctx.lineCap = 'round'
-
-  // Animate mouth when speaking
-  const speakOffset = isSpeaking ? Math.sin(time * 10) * 5 : 0
-
-  switch (emotion) {
-    case 'happy':
-      // Smile
-      ctx.beginPath()
-      ctx.arc(centerX, mouthY - 10, mouthWidth * 0.8, 0.3, Math.PI - 0.3)
-      ctx.stroke()
-      break
-    case 'sad':
-      // Frown
-      ctx.beginPath()
-      ctx.arc(centerX, mouthY + 20, mouthWidth * 0.8, Math.PI + 0.3, Math.PI * 2 - 0.3)
-      ctx.stroke()
-      break
-    case 'fear':
-      // Wavy line
-      ctx.beginPath()
-      ctx.moveTo(centerX - mouthWidth / 2, mouthY)
-      for (let i = 0; i <= 10; i++) {
-        const x = centerX - mouthWidth / 2 + (mouthWidth / 10) * i
-        const y = mouthY + Math.sin(i + time * 5) * 3
-        ctx.lineTo(x, y)
-      }
-      ctx.stroke()
-      break
-    case 'surprise':
-      // Open circle
-      ctx.beginPath()
-      ctx.arc(centerX, mouthY + speakOffset, mouthWidth * 0.3, 0, Math.PI * 2)
-      ctx.stroke()
-      break
-    case 'angry':
-      // Straight line (frown)
-      ctx.beginPath()
-      ctx.moveTo(centerX - mouthWidth / 2, mouthY - 5)
-      ctx.lineTo(centerX + mouthWidth / 2, mouthY - 5)
-      ctx.stroke()
-      break
-    case 'disgust':
-      // Twisted smile
-      ctx.beginPath()
-      ctx.arc(centerX, mouthY - 5, mouthWidth * 0.6, 0.1, Math.PI - 0.1)
-      ctx.stroke()
-      break
-    case 'neutral':
-    default:
-      // Straight line
-      ctx.beginPath()
-      ctx.moveTo(centerX - mouthWidth / 2, mouthY + speakOffset)
-      ctx.lineTo(centerX + mouthWidth / 2, mouthY + speakOffset)
-      ctx.stroke()
-  }
+  const rms = Math.sqrt(sum / pcm.length)
+  return Math.min(1, rms * 2)
 }

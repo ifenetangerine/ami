@@ -9,7 +9,7 @@ import { useEmotionDetection } from '@/hooks/use-emotion-detection'
 import { useHealthMonitoring } from '@/hooks/use-health-monitoring'
 import { useRealtimeAgent } from '@/hooks/use-realtime-agent'
 import { useState, useEffect } from 'react'
-import { startListening, stopListening, closeRealtime } from '@/hooks/speak'
+import { startListening, stopListening, closeRealtime, setCurrentEmotion } from '@/hooks/speak'
 
 export type EmotionType = 'angry' | 'disgust' | 'fear' | 'happy' | 'neutral' | 'sad' | 'surprise'
 
@@ -55,6 +55,12 @@ export default function Page() {
     }
     console.log('[Page] Emotion state updated - currentEmotion:', currentEmotion, 'detectedEmotion:', detectedEmotion)
   }, [isListening, detectedEmotion])
+
+  // Update the realtime agent's emotion context
+  useEffect(() => {
+    setCurrentEmotion(detectedEmotion)
+    console.log('[Page] Updating realtime agent emotion context to:', detectedEmotion)
+  }, [detectedEmotion])
 
   useEffect(() => {
     if (isDetecting && !isMonitoring) {

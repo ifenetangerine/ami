@@ -5,6 +5,8 @@ import { HealthMonitor } from '@/components/health-monitor'
 import { VoiceControls } from '@/components/voice-controls'
 import { EmotionDisplay } from '@/components/emotion-display'
 import { CameraPreview } from '@/components/camera-preview'
+import { DraggablePanel } from '@/components/draggable-panel'
+import { ParticleBackground } from '@/components/particle-background'
 import { useEmotionDetection } from '@/hooks/use-emotion-detection'
 import { useHealthMonitoring } from '@/hooks/use-health-monitoring'
 import { useRealtimeAgent } from '@/hooks/use-realtime-agent'
@@ -120,14 +122,23 @@ export default function Page() {
   }
 
   return (
-    <main className="min-h-screen bg-background flex items-center justify-center p-8">
-      <div className="w-full max-w-md space-y-6">
-        <AnimatedFace
-          emotion={currentEmotion}
-          isListening={isListening}
-          isSpeaking={isProcessing}
-        />
+    <main className="min-h-screen flex items-center justify-center relative overflow-hidden bg-white">
+      {/* Animated particle background */}
+      <ParticleBackground />
 
+      {/* Main face container */}
+      <div className="relative z-10 flex items-center justify-center w-full h-screen">
+        <div className="w-full max-w-2xl aspect-square flex items-center justify-center">
+          <AnimatedFace
+            emotion={currentEmotion}
+            isListening={isListening}
+            isSpeaking={isProcessing}
+          />
+        </div>
+      </div>
+
+      {/* Draggable control panel */}
+      <DraggablePanel title="Controls & Monitoring" defaultX={20} defaultY={20}>
         <VoiceControls
           isListening={isListening}
           isSpeaking={isProcessing}
@@ -136,17 +147,23 @@ export default function Page() {
           onEmergencyStop={handleEmergencyStop}
         />
 
+        <div className="border-t border-medical-primary/20 pt-4" />
+
         <EmotionDisplay
           emotion={detectedEmotion}
           confidence={confidence}
           isActive={isDetecting}
         />
 
+        <div className="border-t border-medical-primary/20 pt-4" />
+
         <CameraPreview
           videoRef={videoRef as React.RefObject<HTMLVideoElement>}
           isActive={isDetecting}
           onToggle={handleToggleCamera}
         />
+
+        <div className="border-t border-medical-primary/20 pt-4" />
 
         <HealthMonitor
           detectedEmotion={detectedEmotion}
@@ -157,7 +174,7 @@ export default function Page() {
           alertHistory={metrics.alertHistory}
           onClearAlert={clearAlert}
         />
-      </div>
+      </DraggablePanel>
     </main>
   )
 }

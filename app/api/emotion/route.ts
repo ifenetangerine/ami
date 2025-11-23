@@ -13,8 +13,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Forward to Python backend
-    const response = await fetch(`${PYTHON_BACKEND_URL}/detect_emotion`, {
+    // Forward to Python backend combined endpoint (returns DeepFace + custom classifier)
+    const response = await fetch(`${PYTHON_BACKEND_URL}/predict_combined`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -32,7 +32,20 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await response.json()
-    return NextResponse.json(result)
+
+    // Map combined response to the original shape expected by useEmotionDetection
+    // Prefer DeepFace emotion/confidence but include custom classifier data under `custom_*` keys
+    const mapped = {
+      emotion: result.deepface_emotion || result.custom_label || 'neutral',
+      confidence: typeof result.deepface_confidence === 'number' ? result.deepface_confidence : (result.custom_confidence || 0),
+      face_detected: result.face_detected || false,
+      // preserve custom fields for frontend access
+      custom_label: result.custom_label || null,
+      custom_confidence: result.custom_confidence || null,
+      raw: result
+    }
+
+    return NextResponse.json(mapped)
   } catch (error) {
     console.error('Error in emotion detection API:', error)
     return NextResponse.json(

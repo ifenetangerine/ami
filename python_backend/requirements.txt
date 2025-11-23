@@ -1,3 +1,15 @@
+# Recommended Python package pins for the backend.
+# Adjust versions as needed for your platform (macOS, Linux, CPU/GPU).
+
+fastapi==0.95.2
+uvicorn[standard]==0.22.0
+deepface==0.0.86
+tensorflow==2.11.0
+opencv-python-headless==4.7.0.72
+scikit-learn==1.2.2
+joblib==1.3.2
+# Optional (install if you plan to train LightGBM models):
+lightgbm==3.4.1
 fastapi==0.104.1
 uvicorn==0.24.0
 numpy==1.24.3

@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+# Optional dict to hold preloaded DeepFace models to reduce first-request latency
+preloaded_models = {}
+
 # Optional classifier pipeline (created by training script)
 classifier_pipeline = None
 CLASSIFIER_PATH = os.path.join(os.path.dirname(__file__), 'train', 'best_model.joblib')
@@ -126,6 +129,48 @@ async def detect_emotion(input_data: FrameInput):
     except Exception as e:
         logger.error(f"Error in emotion detection: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def preload_deepface_models():
+    """Attempt to build/load common DeepFace models at server startup to reduce per-request latency.
+
+    This function is intentionally best-effort: failures will be logged but won't prevent the server
+    from starting so that endpoints still work (they will fallback to on-demand model building).
+    """
+    global preloaded_models
+    try:
+        logger.info("Preloading DeepFace models: ArcFace (representations) and Emotion (analyzer)")
+        try:
+            arc = DeepFace.build_model('ArcFace')
+            preloaded_models['ArcFace'] = arc
+            logger.info('ArcFace model built and cached')
+        except Exception as e:
+            logger.warning(f'Could not build ArcFace model at startup: {e}')
+
+        # Emotion model is used by DeepFace.analyze for emotion detection
+        try:
+            emo = DeepFace.build_model('Emotion')
+            preloaded_models['Emotion'] = emo
+            logger.info('Emotion model built and cached')
+        except Exception as e:
+            logger.warning(f'Could not build Emotion model at startup: {e}')
+
+    except Exception as e:
+        logger.warning(f'Unexpected error while preloading DeepFace models: {e}')
+
+
+@app.on_event("startup")
+async def _on_startup():
+    # Best-effort: preload classifier pipeline and DeepFace models so first requests are faster.
+    try:
+        load_classifier_pipeline()
+    except Exception as e:
+        logger.warning(f'Failed to load classifier pipeline at startup: {e}')
+
+    try:
+        preload_deepface_models()
+    except Exception as e:
+        logger.warning(f'Preload DeepFace models failed at startup: {e}')
 
 
 def load_classifier_pipeline(path: str = None):

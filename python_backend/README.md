@@ -1,3 +1,93 @@
+# Python Backend (DeepFace + Classifier)
+
+This backend provides DeepFace-based emotion analysis and an optional custom classifier trained on ArcFace embeddings.
+
+Quick setup and run instructions
+
+1) Create a virtual environment (recommended)
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+2) Install required packages
+
+You can install the main dependencies with pip. Adjust versions as needed for your platform.
+
+```bash
+pip install --upgrade pip
+pip install fastapi uvicorn deepface opencv-python-headless scikit-learn joblib
+# Optional (recommended for better classifier performance):
+pip install lightgbm
+```
+
+Notes:
+- Some DeepFace backends (TensorFlow) are picky about Python versions. If you run into build or wheel issues, use Python 3.8-3.11.
+- On macOS you may prefer `opencv-python-headless` to avoid GUI dependencies.
+
+3) Prepare dataset (for training)
+
+Place your labeled images in `python_backend/data/<label>/*.jpg`.
+
+Example structure:
+
+```
+python_backend/data/happy/001.jpg
+python_backend/data/happy/002.jpg
+python_backend/data/sad/001.jpg
+python_backend/data/laughing/001.jpg
+```
+
+4) Train the classifier
+
+From the `python_backend` directory run:
+
+```bash
+python train/train.py --data-dir data --output train/best_model.joblib
+```
+
+This will extract ArcFace embeddings and train multiple classifiers, saving the best pipeline to `train/best_model.joblib`.
+
+5) Start the server
+
+```bash
+uvicorn python_backend.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+The server will attempt to preload DeepFace models and the classifier pipeline at startup (best-effort). If the pipeline is missing the server still runs and returns DeepFace-only responses.
+
+6) Test the combined prediction endpoint
+
+Send a JSON payload with a Base64-encoded image string to `/predict_combined`:
+
+```bash
+curl -X POST http://127.0.0.1:8000/predict_combined \
+  -H 'Content-Type: application/json' \
+  -d '{"frame":"<BASE64_IMAGE>"}'
+```
+
+Response sample:
+
+```json
+{
+  "custom_label": "laughing",
+  "custom_confidence": 0.87,
+  "deepface_emotion": "happy",
+  "deepface_confidence": 0.93,
+  "face_detected": true
+}
+```
+
+Troubleshooting
+- If DeepFace model downloads fail on startup, check network access and ensure required ML libraries (TensorFlow/PyTorch) are installed.
+- If `joblib` cannot load the pipeline, verify the training environment used compatible package versions (scikit-learn).
+
+Next steps (optional)
+- Pin package versions into `requirements.txt` for reproducible installs.
+- Run the training inside a GPU-enabled environment for faster embedding extraction.
+
+If you want, I can add a `requirements.txt` with recommended pins and update `train/train.py` to print compatibility info after training.
 # Python Backend Setup
 
 This directory contains a FastAPI service for real-time facial emotion detection using DeepFace.

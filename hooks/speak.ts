@@ -59,6 +59,17 @@ export function setCurrentEmotion(emotion: EmotionType | null) {
   console.log('[v0] Current emotion context updated to:', emotion)
 }
 
+export async function startListening() {
+  try {
+    console.log('[v0] startListening called - ensuring realtime session')
+    const session = await initializeRealtime()
+    return session
+  } catch (error) {
+    console.error('[v0] Failed to start listening:', error)
+    throw error
+  }
+}
+
 export async function initializeRealtime() {
   try {
     if (realtimeSession) {
@@ -87,74 +98,73 @@ export async function initializeRealtime() {
       apiKey,
     })
 
-    console.log('[v0] Session connected, setting up audio analysis')
-    console.log('[v0] Session object keys:', Object.keys(session))
-    console.log('[v0] Session object:', session)
+    console.log('[v0] Session connected, wiring audio events')
 
-    // Initialize the flag
-    ;(window as any).__aiSpeaking = false
+    let silenceTimeout: ReturnType<typeof setTimeout> | null = null
 
-    // Try different event names and hooks
-    if (typeof (session as any).on === 'function') {
-      console.log('[v0] Attaching to session.on("output")')
-      ;(session as any).on('output', (o: any) => {
-        console.log('[v0] Output event fired:', o.type)
-        ;(window as any).__aiSpeaking = true
-      })
+    const setSpeaking = (value: boolean, source: string) => {
+      if (typeof window === 'undefined') return
+      const current = (window as any).__aiSpeaking
+      if (current === value) return
+      ;(window as any).__aiSpeaking = value
+      console.log(`[v0] ${source} -> aiSpeaking ${value}`)
     }
 
-    // Also try agent
-    if (typeof (agent as any).on === 'function') {
-      console.log('[v0] Attaching to agent.on("response")')
-      ;(agent as any).on('response', (r: any) => {
-        console.log('[v0] Response event fired')
-        ;(window as any).__aiSpeaking = true
-      })
+    const markSpeaking = (source: string) => {
+      if (silenceTimeout) {
+        clearTimeout(silenceTimeout)
+        silenceTimeout = null
+      }
+      setSpeaking(true, source)
     }
 
-    // Monitor the session's internal state
-    const stateCheckInterval = setInterval(() => {
-      const sessionState = (session as any)
-      // Look for audio-related properties
-      if (sessionState.isPlayingAudio !== undefined) {
-        ;(window as any).__aiSpeaking = sessionState.isPlayingAudio
+    const scheduleSilence = (source: string) => {
+      if (silenceTimeout) {
+        clearTimeout(silenceTimeout)
       }
-      if (sessionState.audioBuffer !== undefined && sessionState.audioBuffer.length > 0) {
-        ;(window as any).__aiSpeaking = true
-      }
-    }, 50)
+      silenceTimeout = setTimeout(() => {
+        setSpeaking(false, source)
+        silenceTimeout = null
+      }, 150)
+    }
 
-    if (!(session as any).__stateCheckInterval) {
-      (session as any).__stateCheckInterval = stateCheckInterval
-    }    // Fallback: Set up a heartbeat to animate mouth while speaking
-    let heartbeatCount = 0
-    const heartbeat = setInterval(() => {
-      heartbeatCount++
-      const updateFunc = (window as any).updateAvatarAmplitude
-      if (updateFunc && typeof updateFunc === 'function') {
-        if (heartbeatCount === 1) {
-          console.log('[v0] Heartbeat started')
+    if (typeof window !== 'undefined') {
+      ;(window as any).__aiSpeaking = false
+    }
+
+    session.on('audio_start', () => markSpeaking('audio_start'))
+    session.on('audio', () => markSpeaking('audio_chunk'))
+    session.on('audio_stopped', () => scheduleSilence('audio_stopped'))
+    session.on('audio_interrupted', () => scheduleSilence('audio_interrupted'))
+    session.on('agent_end', () => scheduleSilence('agent_end'))
+    session.on('error', () => scheduleSilence('session_error'))
+
+    session.on('history_added', (item: any) => {
+      if (!item) return
+      const type = item.type || ''
+      if (typeof type === 'string' && type.includes('output_audio')) {
+        markSpeaking(`history:${type}`)
+      }
+    })
+
+    session.on('transport_event', (event: any) => {
+      const type = event?.type
+      if (typeof type !== 'string') return
+
+      if (type.includes('audio')) {
+        if (type.includes('delta') || type.includes('start') || type.includes('chunk')) {
+          markSpeaking(`transport:${type}`)
         }
 
-        if ((window as any).__aiSpeaking) {
-          // Animate mouth cycling through speaking patterns
-          const data = new Float32Array(256)
-          const amplitude = 0.4 + Math.sin(Date.now() / 200) * 0.3
-          for (let i = 0; i < data.length; i++) {
-            data[i] = (Math.random() - 0.5) * 2 * amplitude
-          }
-          updateFunc(data)
-        } else {
-          // Even when not speaking, call it with empty data
-          updateFunc(new Float32Array(256))
+        if (type.includes('done') || type.includes('complete') || type.includes('stop')) {
+          scheduleSilence(`transport:${type}`)
         }
       }
-    }, 100)
 
-    // Store the heartbeat interval so we can clear it later
-    if (!(session as any).__heartbeat) {
-      (session as any).__heartbeat = heartbeat
-    }
+      if (type === 'response.completed' || type === 'response.failed' || type === 'response.truncated') {
+        scheduleSilence(`transport:${type}`)
+      }
+    })
 
     realtimeSession = session
     realtimeAgent = agent
@@ -166,19 +176,6 @@ export async function initializeRealtime() {
   }
 }
 
-export async function startListening() {
-  try {
-    console.log('[v0] startListening called - initializing realtime')
-    const session = await initializeRealtime()
-    // RealtimeSession automatically handles microphone input
-    console.log('[v0] Listening started - microphone is active')
-    return session
-  } catch (error) {
-    console.error('[v0] Failed to start listening:', error)
-    throw error
-  }
-}
-
 export async function stopListening() {
   try {
     if (!realtimeSession) {
@@ -186,10 +183,9 @@ export async function stopListening() {
       return
     }
 
-    // Clear heartbeat if it exists
-    if ((realtimeSession as any).__heartbeat) {
-      clearInterval((realtimeSession as any).__heartbeat)
-      console.log('[v0] Cleared audio heartbeat')
+    console.log('[v0] User stopped listening - disconnecting session')
+    if (typeof window !== 'undefined') {
+      ;(window as any).__aiSpeaking = false
     }
 
     // Properly disconnect the session
@@ -217,11 +213,6 @@ export async function stopListening() {
 export function closeRealtime() {
   if (realtimeSession) {
     try {
-      // Clear heartbeat if it exists
-      if ((realtimeSession as any).__heartbeat) {
-        clearInterval((realtimeSession as any).__heartbeat)
-      }
-
       if (typeof (realtimeSession as any).disconnect === 'function') {
         (realtimeSession as any).disconnect()
       } else if (typeof (realtimeSession as any).close === 'function') {
@@ -231,6 +222,9 @@ export function closeRealtime() {
       console.warn('[v0] Error closing session:', error)
     }
     realtimeSession = null
+    if (typeof window !== 'undefined') {
+      ;(window as any).__aiSpeaking = false
+    }
     console.log('[v0] Realtime session closed')
   }
 }

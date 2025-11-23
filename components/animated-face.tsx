@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { EmotionType } from '@/app/page'
 
 interface AnimatedFaceProps {
@@ -19,6 +19,7 @@ export function AnimatedFace({ emotion, isListening, isSpeaking }: AnimatedFaceP
     mouth_narrow: HTMLImageElement | null
     mouth_closed: HTMLImageElement | null
     mouth_rest_frown: HTMLImageElement | null
+    background: HTMLImageElement | null
   }>({
     head_open: null,
     head_closed: null,
@@ -27,6 +28,7 @@ export function AnimatedFace({ emotion, isListening, isSpeaking }: AnimatedFaceP
     mouth_narrow: null,
     mouth_closed: null,
     mouth_rest_frown: null,
+    background: null,
   })
   const stateRef = useRef({
     currentMouth: 'rest' as string,
@@ -37,72 +39,24 @@ export function AnimatedFace({ emotion, isListening, isSpeaking }: AnimatedFaceP
     useFrown: false,
     callCount: 0,
   })
+  const [aiSpeaking, setAiSpeaking] = useState(false)
 
-  // Update mouth animation based on window.__aiSpeaking flag
+  // Poll the global speaking flag to drive ambient glow
   useEffect(() => {
-    let animationInterval: NodeJS.Timeout | null = null
-    let callCount = 0
-    let lastMouth = ''
+    const poll = setInterval(() => {
+      if (typeof window === 'undefined') return
+      const value = (window as any).__aiSpeaking === true
+      setAiSpeaking(prev => (prev === value ? prev : value))
+    }, 150)
 
-    const checkSpeaking = () => {
-      const isAiSpeaking = (window as any).__aiSpeaking === true
+    return () => clearInterval(poll)
+  }, [])
 
-      if (callCount % 10 === 0) {
-        console.log('[AnimatedFace] Checking: __aiSpeaking =', (window as any).__aiSpeaking, 'isAiSpeaking =', isAiSpeaking)
-      }
-
-      if (isAiSpeaking) {
-        if (!animationInterval) {
-          console.log('[AnimatedFace] AI started speaking, activating mouth animation')
-          callCount = 0
-
-          animationInterval = setInterval(() => {
-            callCount++
-            const phase = callCount % 15
-
-            let newMouth = ''
-            if (phase < 5) {
-              newMouth = 'open'
-            } else if (phase < 10) {
-              newMouth = 'narrow'
-            } else {
-              newMouth = 'closed'
-            }
-
-            if (newMouth !== lastMouth) {
-              console.log('[AnimatedFace] Mouth changed to:', newMouth)
-              lastMouth = newMouth
-            }
-            stateRef.current.currentMouth = newMouth
-          }, 100)
-        }
-      } else {
-        if (animationInterval) {
-          console.log('[AnimatedFace] AI stopped speaking, mouth to rest')
-          clearInterval(animationInterval)
-          animationInterval = null
-        }
-        const newMouth = stateRef.current.useFrown ? 'rest_frown' : 'rest'
-        if (newMouth !== lastMouth) {
-          console.log('[AnimatedFace] Mouth changed to:', newMouth)
-          lastMouth = newMouth
-        }
-        stateRef.current.currentMouth = newMouth
-      }
-    }
-
-    // Check speaking state every 100ms
-    const checkInterval = setInterval(checkSpeaking, 100)
-
-    return () => {
-      clearInterval(checkInterval)
-      if (animationInterval) {
-        clearInterval(animationInterval)
-      }
-    }
-  }, [])    // Update frown based on emotion  // Update frown based on emotion
+  // Keep mouth in emotion-specific resting pose
   useEffect(() => {
-    stateRef.current.useFrown = emotion === 'sad' || emotion === 'angry' || emotion === 'fear' || emotion === 'disgust'
+    const shouldFrown = emotion === 'sad' || emotion === 'angry' || emotion === 'fear' || emotion === 'disgust'
+    stateRef.current.useFrown = shouldFrown
+    stateRef.current.currentMouth = shouldFrown ? 'rest_frown' : 'rest'
   }, [emotion])
 
   useEffect(() => {
@@ -122,6 +76,7 @@ export function AnimatedFace({ emotion, isListening, isSpeaking }: AnimatedFaceP
         mouth_narrow: '/faces/mouth_narrow.png',
         mouth_closed: '/faces/mouth_closed.png',
         mouth_rest_frown: '/faces/mouth_rest_frown.png',
+        background: '/background.png',
       }
 
       for (const [key, src] of Object.entries(imageMap)) {
@@ -182,12 +137,15 @@ export function AnimatedFace({ emotion, isListening, isSpeaking }: AnimatedFaceP
   }, [])
 
   const drawAvatar = (ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number) => {
-    const { head_open, head_closed, mouth_rest, mouth_open, mouth_narrow, mouth_closed, mouth_rest_frown } = imagesRef.current
+    const { head_open, head_closed, mouth_rest, mouth_open, mouth_narrow, mouth_closed, mouth_rest_frown, background } = imagesRef.current
 
-    if (!head_open || !head_closed || !mouth_rest) return
+    if (!head_open || !head_closed || !mouth_rest || !background) return
 
     // Clear canvas
     ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+
+    // Draw background
+    ctx.drawImage(background, 0, 0, canvasWidth, canvasHeight)
 
     // Draw head (open or closed eyes)
     const headImage = stateRef.current.eyesClosed ? head_closed : head_open
@@ -220,12 +178,20 @@ export function AnimatedFace({ emotion, isListening, isSpeaking }: AnimatedFaceP
     }
   }
 
+  const presenceState = aiSpeaking ? 'ai' : isListening ? 'user' : 'idle'
+  const glowClass = {
+    ai: 'scale-105 shadow-[0_0_60px_rgba(72,195,198,0.45)]',
+    user: 'scale-105 shadow-[0_0_40px_rgba(255,255,255,0.35)]',
+    idle: 'scale-100 shadow-none',
+  }[presenceState]
+
   return (
     <div className="relative w-full aspect-square">
       <canvas
         ref={canvasRef}
-        className="w-full h-full bg-gradient-to-b from-slate-900 to-slate-800 rounded-lg"
+        className="w-full h-full rounded-full"
       />
+      <div className={`absolute inset-0 rounded-full transition-all duration-700 ease-out ${glowClass}`} />
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className={`text-medical-primary/20 text-8xl font-bold transition-opacity duration-500 ${isSpeaking ? 'opacity-100' : 'opacity-0'}`}>
           AMI
@@ -233,13 +199,4 @@ export function AnimatedFace({ emotion, isListening, isSpeaking }: AnimatedFaceP
       </div>
     </div>
   )
-}
-
-function calculateMouthValueFromPcm(pcm: Float32Array): number {
-  let sum = 0
-  for (let i = 0; i < pcm.length; i++) {
-    sum += Math.abs(pcm[i])
-  }
-  const rms = Math.sqrt(sum / pcm.length)
-  return Math.min(1, rms * 2)
 }

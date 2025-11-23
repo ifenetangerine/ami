@@ -1,3 +1,10 @@
 node_modules
 .next
+python_backend/.venv/
+*.jpg
+*.png
+*.gif
+*.jpeg
+*.avif
+*.webp
 
